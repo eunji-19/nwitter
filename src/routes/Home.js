@@ -1,8 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { dbService, storageService } from "fbConfig";
-import { collection, onSnapshot, query } from "firebase/firestore";
+import {
+  collection,
+  onSnapshot,
+  query,
+  serverTimestamp,
+  addDoc,
+} from "firebase/firestore";
 import Nweet from "components/Nweet";
-import { ref, uploadString } from "@firebase/storage";
+import { ref, uploadString, getDownloadURL } from "@firebase/storage";
 import { v4 as uuidv4 } from "uuid";
 
 /**
@@ -45,9 +51,34 @@ const Home = ({ userObj }) => {
 
   const onSubmit = async (event) => {
     event.preventDefault();
-    const fileRef = ref(storageService, `${userObj.uid}/${uuidv4()}`);
-    const response = await uploadString(fileRef, attachment, "data_url");
-    console.log(response);
+
+    let attachmentUrl = "";
+
+    if (attachment !== "") {
+      //파일 경로 참조 만들기
+      const attachmentRef = ref(storageService, `${userObj.uid}/${uuidv4()}`);
+      //storage 참조 경로로 파일 업로드 하기
+      const response = await uploadString(
+        attachmentRef,
+        attachment,
+        "data_url"
+      );
+      //storage에 있는 파일 URL로 다운로드 받기
+      attachmentUrl = await getDownloadURL(response.ref);
+    }
+
+    const newNweetObj = {
+      text: nweet,
+      createdAt: serverTimestamp(),
+      creatorId: userObj.uid,
+      attachmentUrl,
+    };
+
+    // firebase store 에 새로운 nweet 저장
+    await addDoc(collection(dbService, "nweet"), newNweetObj);
+
+    setNweet("");
+    setAttachment("");
 
     // await addDoc(collection(dbService, "nweet"), {
     //   text: nweet,
@@ -88,7 +119,12 @@ const Home = ({ userObj }) => {
         <input type="submit" value="Nweet" />
         {attachment && (
           <div>
-            <img src={attachment} width=" 50px" height="50px" />
+            <img
+              src={attachment}
+              width=" 50px"
+              height="50px"
+              alt={attachment}
+            />
             <button onClick={clearPhoto}>Clear</button>
           </div>
         )}
